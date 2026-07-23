@@ -1,0 +1,18 @@
+{
+  "messages": [
+    {
+      "id": "example-1",
+      "role": "user",
+      "content": "明天一起去图书馆吗？",
+      "createdAt": 1784736000000,
+      "timeKnown": true
+    },
+    {
+      "id": "example-2",
+      "role": "assistant",
+      "content": "好，我想坐在靠窗的位置。",
+      "createdAt": 1784736060000,
+      "timeKnown": true
+    }
+  ]
+}

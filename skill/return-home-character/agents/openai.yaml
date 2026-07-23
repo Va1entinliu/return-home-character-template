@@ -1,0 +1,4 @@
+interface:
+  display_name: "Return Home Character"
+  short_description: "Guide private AI companion migration to a signed Android APK"
+  default_prompt: "Use $return-home-character to configure, validate, and package a private AI companion migration as a standalone Android APK."

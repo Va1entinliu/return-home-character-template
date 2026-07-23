@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Return Home Character</title>
+  <style>
+    body { max-width: 720px; margin: 0 auto; padding: 24px; font: 16px/1.6 system-ui; }
+    #messages { min-height: 300px; white-space: pre-wrap; }
+    .user { text-align: right; color: #087be6; }
+    .assistant { color: #222; }
+    form { display: flex; gap: 8px; }
+    textarea { flex: 1; min-height: 52px; }
+    button { min-width: 72px; }
+  </style>
+</head>
+<body>
+  <h1>Return Home Character</h1>
+  <p>最小技术验证界面，不包含任何平台专有 UI。</p>
+  <p id="status"></p>
+  <main id="messages"></main>
+  <form id="composer">
+    <textarea id="input" placeholder="输入消息"></textarea>
+    <button>发送</button>
+  </form>
+  <script>
+    const messages = document.querySelector("#messages");
+    const form = document.querySelector("#composer");
+    const input = document.querySelector("#input");
+    const status = document.querySelector("#status");
+    let busy = false;
+    const sessionId = localStorage.getItem("return-home-session-id")
+      || crypto.randomUUID();
+    localStorage.setItem("return-home-session-id", sessionId);
+    let accessToken = sessionStorage.getItem("return-home-access-token") || "";
+
+    function requireToken() {
+      if (!accessToken) {
+        accessToken = window.prompt("请输入 .env 中的 APP_ACCESS_TOKEN") || "";
+        if (accessToken) {
+          sessionStorage.setItem("return-home-access-token", accessToken);
+        }
+      }
+      return accessToken;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const token = requireToken();
+      if (!token) throw new Error("未填写 App 访问令牌");
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          "X-App-Token": token,
+        },
+      });
+      if (response.status === 401) {
+        sessionStorage.removeItem("return-home-access-token");
+        accessToken = "";
+      }
+      return response;
+    }
+
+    function add(role, text) {
+      const p = document.createElement("p");
+      p.className = role;
+      p.textContent = `${role === "user" ? "你" : "角色"}：${text}`;
+      messages.append(p);
+    }
+
+    async function loadHistory() {
+      status.textContent = "正在读取本地会话……";
+      try {
+        const response = await apiFetch(
+          `/api/history?session_id=${encodeURIComponent(sessionId)}`,
+        );
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "历史读取失败");
+        messages.replaceChildren();
+        payload.messages.forEach((message) => add(message.role, message.content));
+        status.textContent = `会话已从本地数据库恢复（${payload.messages.length} 条）`;
+      } catch (error) {
+        status.textContent = `错误：${error.message}`;
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy || !input.value.trim()) return;
+      busy = true;
+      const text = input.value.trim();
+      input.value = "";
+      add("user", text);
+      try {
+        const response = await apiFetch("/api/chat", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            text,
+            request_id: crypto.randomUUID(),
+            session_id: sessionId,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "请求失败");
+        add("assistant", payload.reply);
+      } catch (error) {
+        add("assistant", `错误：${error.message}`);
+      } finally {
+        busy = false;
+      }
+    });
+
+    loadHistory();
+  </script>
+</body>
+</html>
